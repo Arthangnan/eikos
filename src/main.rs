@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+mod port;
 use core::panic::PanicInfo;
 
 static HELLO: &[u8] = b"Hello World!";
