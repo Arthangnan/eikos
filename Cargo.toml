@@ -5,11 +5,9 @@ name = "eikos"
 version = "0.1.0"
 
 [dependencies]
+lazy_static = { version = "1.5", features = ["spin_no_std"] }
 spin = "0.10.0"
+uart_16550 = "0.3.2"
 
 [build-dependencies]
 glob = "0.3.2"
-
-[dependencies.lazy_static]
-version = "1.0"
-features = ["spin_no_std"]
