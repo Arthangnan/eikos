@@ -132,7 +132,7 @@ impl Writer {
                 self.column_position += 1;
                 CURSOR
                     .lock()
-                    .move_cursor((self.column_position + row) as u16);
+                    .move_cursor((row * BUFFER_WIDTH + self.column_position) as u16);
             }
         }
     }
@@ -158,7 +158,10 @@ impl Writer {
         }
         self.clear_row(BUFFER_HEIGHT - 1);
         self.column_position = 0;
-        CURSOR.lock().move_cursor(0);
+        let row = BUFFER_HEIGHT - 1;
+        CURSOR
+            .lock()
+            .move_cursor((row * BUFFER_WIDTH + self.column_position) as u16);
     }
 
     pub fn write_string(&mut self, s: &str) {
