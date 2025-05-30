@@ -29,4 +29,4 @@ clean:
     @rm -rf {{ iso }} {{ iso_dir }}
 
 run: build iso
-    qemu-system-i386 -cdrom {{ iso }} -no-reboot -no-shutdown
+    qemu-system-i386 -cdrom {{ iso }} -no-reboot -no-shutdown -serial stdio
