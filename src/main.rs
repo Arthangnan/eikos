@@ -5,10 +5,30 @@
 mod port;
 mod vga_buffer;
 use core::panic::PanicInfo;
+use lazy_static::lazy_static;
+use spin::Mutex;
+use uart_16550::SerialPort;
+
+lazy_static! {
+    static ref SERIAL1: Mutex<SerialPort> = {
+        let mut serial_port = unsafe { SerialPort::new(0x3F8) };
+        serial_port.init();
+        Mutex::new(serial_port)
+    };
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn teleia() {
-    println!("42");
+    loop {
+        if let Ok(data) = SERIAL1.lock().try_receive() {
+            println!("something");
+            if data == 10 {
+                println!();
+            } else {
+                println!("{}", data);
+            }
+        };
+    }
 }
 
 #[panic_handler]
