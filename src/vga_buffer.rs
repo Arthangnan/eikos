@@ -1,7 +1,6 @@
-use core::fmt;
+use core::{fmt, ptr};
 use lazy_static::lazy_static;
 use spin::Mutex;
-use volatile::Volatile;
 
 const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
@@ -72,7 +71,7 @@ struct ScreenChar {
 
 #[repr(transparent)]
 struct Buffer {
-    chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
+    chars: [[ScreenChar; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
 pub struct Writer {
@@ -94,10 +93,15 @@ impl Writer {
                 let col = self.column_position;
 
                 let color_code = self.color_code;
-                self.buffer.chars[row][col].write(ScreenChar {
-                    ascii_character: byte,
-                    color_code,
-                });
+                unsafe {
+                    ptr::write_volatile(
+                        &mut self.buffer.chars[row][col],
+                        ScreenChar {
+                            ascii_character: byte,
+                            color_code,
+                        },
+                    );
+                };
                 self.column_position += 1;
             }
         }
@@ -109,15 +113,17 @@ impl Writer {
             color_code: self.color_code,
         };
         for col in 0..BUFFER_WIDTH {
-            self.buffer.chars[row][col].write(blank);
+            unsafe { ptr::write_volatile(&mut self.buffer.chars[row][col], blank) };
         }
     }
 
     fn new_line(&mut self) {
         for row in 1..BUFFER_HEIGHT {
             for col in 0..BUFFER_WIDTH {
-                let character = self.buffer.chars[row][col].read();
-                self.buffer.chars[row - 1][col].write(character);
+                unsafe {
+                    let character = ptr::read_volatile(&self.buffer.chars[row][col]);
+                    ptr::write_volatile(&mut self.buffer.chars[row - 1][col], character);
+                };
             }
         }
         self.clear_row(BUFFER_HEIGHT - 1);
