@@ -1,3 +1,4 @@
+use crate::port::Port;
 use core::{fmt, ptr};
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -11,6 +12,7 @@ lazy_static! {
         color_code: ColorCode::new(Color::Yellow, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
     });
+    pub static ref CURSOR: Mutex<Cursor> = Mutex::new(Cursor::new());
 }
 
 #[macro_export]
@@ -28,6 +30,31 @@ macro_rules! println {
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     WRITER.lock().write_fmt(args).unwrap();
+}
+
+pub struct Cursor {
+    command_port: Port<u8>,
+    data_port: Port<u8>,
+}
+
+impl Cursor {
+    fn new() -> Cursor {
+        Cursor {
+            command_port: Port::new(0x3D4),
+            data_port: Port::new(0x3D5),
+        }
+    }
+
+    fn move_cursor(&mut self, pos: u16) {
+        const HIGH_BYTE: u8 = 0x0F;
+        const LOW_BYTE: u8 = 0x0E;
+        unsafe {
+            self.command_port.write(HIGH_BYTE);
+            self.data_port.write(((pos >> 8) & 0xFF) as u8);
+            self.command_port.write(LOW_BYTE);
+            self.data_port.write((pos & 0xFF) as u8);
+        };
+    }
 }
 
 #[allow(dead_code)]
@@ -103,6 +130,9 @@ impl Writer {
                     );
                 };
                 self.column_position += 1;
+                CURSOR
+                    .lock()
+                    .move_cursor((self.column_position + row) as u16);
             }
         }
     }
@@ -128,6 +158,7 @@ impl Writer {
         }
         self.clear_row(BUFFER_HEIGHT - 1);
         self.column_position = 0;
+        CURSOR.lock().move_cursor(0);
     }
 
     pub fn write_string(&mut self, s: &str) {
