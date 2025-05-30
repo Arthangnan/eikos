@@ -3,6 +3,7 @@
 #![no_main]
 
 mod port;
+mod vga_buffer;
 use core::panic::PanicInfo;
 
 static HELLO: &[u8] = b"Hello World!";
