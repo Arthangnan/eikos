@@ -19,6 +19,7 @@ lazy_static! {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn teleia() {
+    clear_screen!();
     loop {
         if let Ok(data) = SERIAL1.lock().try_receive() {
             if data == 13 {
