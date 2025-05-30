@@ -5,6 +5,11 @@ name = "eikos"
 version = "0.1.0"
 
 [dependencies]
+spin = "0.10.0"
 
 [build-dependencies]
 glob = "0.3.2"
+
+[dependencies.lazy_static]
+version = "1.0"
+features = ["spin_no_std"]
