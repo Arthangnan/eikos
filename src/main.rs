@@ -21,13 +21,12 @@ lazy_static! {
 pub extern "C" fn teleia() {
     loop {
         if let Ok(data) = SERIAL1.lock().try_receive() {
-            println!("something");
-            if data == 10 {
+            if data == 13 {
                 println!();
             } else {
-                println!("{}", data);
+                print!("{}", data as char);
             }
-        };
+        }
     }
 }
 
