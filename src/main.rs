@@ -24,6 +24,8 @@ pub extern "C" fn teleia() {
         if let Ok(data) = SERIAL1.lock().try_receive() {
             if data == 13 {
                 println!();
+            } else if data == 12 {
+                clear_screen!();
             } else {
                 print!("{}", data as char);
             }

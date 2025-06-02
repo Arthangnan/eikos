@@ -136,7 +136,7 @@ impl Writer {
                     self.new_line();
                 }
 
-                let row = 0;
+                let row = BUFFER_HEIGHT - 1;
                 self.write_byte_at(byte, row, self.column_position);
 
                 self.column_position += 1;
