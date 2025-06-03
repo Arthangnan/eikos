@@ -1,3 +1,4 @@
+use crate::port::Port;
 use core::{fmt, ptr};
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -11,6 +12,7 @@ lazy_static! {
         color_code: ColorCode::new(Color::Yellow, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
     });
+    pub static ref CURSOR: Mutex<Cursor> = Mutex::new(Cursor::new());
 }
 
 #[macro_export]
@@ -22,6 +24,13 @@ macro_rules! print {
 macro_rules! println {
 	() => ($crate::print!("\n"));
 	($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! clear_screen {
+    () => {
+        $crate::vga_buffer::WRITER.lock().clear_screen()
+    };
 }
 
 #[doc(hidden)]
@@ -74,6 +83,52 @@ struct Buffer {
     chars: [[ScreenChar; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
+pub struct Cursor {
+    command_port: Port<u8>,
+    data_port: Port<u8>,
+}
+
+impl Cursor {
+    fn new() -> Cursor {
+        let mut cursor = Cursor {
+            command_port: Port::new(0x3D4),
+            data_port: Port::new(0x3D5),
+        };
+        cursor.enable_cursor(14, 15);
+        cursor
+    }
+
+    fn move_cursor(&mut self, row: usize, column: usize) {
+        const HIGH_BYTE: u8 = 0x0E;
+        const LOW_BYTE: u8 = 0x0F;
+
+        let pos: u16 = (row * BUFFER_WIDTH + column) as u16;
+
+        unsafe {
+            self.command_port.write(HIGH_BYTE);
+            self.data_port.write(((pos >> 8) & 0xFF) as u8);
+            self.command_port.write(LOW_BYTE);
+            self.data_port.write((pos & 0xFF) as u8);
+        };
+    }
+
+    fn enable_cursor(&mut self, cursor_start: u8, cursor_end: u8) {
+        const START_REGISTER: u8 = 0x0A;
+        const END_REGISTER: u8 = 0x0B;
+
+        unsafe {
+            self.command_port.write(START_REGISTER);
+            let mut current_data = self.data_port.read();
+            self.data_port
+                .write((current_data & 0xC0) | (cursor_start & 0x1F));
+            self.command_port.write(END_REGISTER);
+            current_data = self.data_port.read();
+            self.data_port
+                .write((current_data & 0xE0) | (cursor_end & 0x1F));
+        }
+    }
+}
+
 pub struct Writer {
     column_position: usize,
     color_code: ColorCode,
@@ -81,39 +136,40 @@ pub struct Writer {
 }
 
 impl Writer {
-    pub fn write_byte(&mut self, byte: u8) {
+    fn write_byte_at(&mut self, byte: u8, row: usize, col: usize) {
+        let color_code = self.color_code;
+        unsafe {
+            ptr::write_volatile(
+                &mut self.buffer.chars[row][col],
+                ScreenChar {
+                    ascii_character: byte,
+                    color_code,
+                },
+            );
+        };
+    }
+
+    fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
-            byte => {
+            b' '..=b'~' => {
                 if self.column_position >= BUFFER_WIDTH {
                     self.new_line();
                 }
 
                 let row = BUFFER_HEIGHT - 1;
-                let col = self.column_position;
+                self.write_byte_at(byte, row, self.column_position);
 
-                let color_code = self.color_code;
-                unsafe {
-                    ptr::write_volatile(
-                        &mut self.buffer.chars[row][col],
-                        ScreenChar {
-                            ascii_character: byte,
-                            color_code,
-                        },
-                    );
-                };
                 self.column_position += 1;
+                CURSOR.lock().move_cursor(row, self.column_position);
             }
+            _ => self.write_byte(b'*'),
         }
     }
 
-    fn clear_row(&mut self, row: usize) {
-        let blank = ScreenChar {
-            ascii_character: b' ',
-            color_code: self.color_code,
-        };
-        for col in 0..BUFFER_WIDTH {
-            unsafe { ptr::write_volatile(&mut self.buffer.chars[row][col], blank) };
+    fn write_string(&mut self, s: &str) {
+        for byte in s.bytes() {
+            self.write_byte(byte);
         }
     }
 
@@ -128,15 +184,22 @@ impl Writer {
         }
         self.clear_row(BUFFER_HEIGHT - 1);
         self.column_position = 0;
+        let row = BUFFER_HEIGHT - 1;
+        CURSOR.lock().move_cursor(row, self.column_position);
     }
 
-    pub fn write_string(&mut self, s: &str) {
-        for byte in s.bytes() {
-            match byte {
-                0x20..=0x7e | b'\n' => self.write_byte(byte),
-                _ => self.write_byte(0xfe),
-            }
+    fn clear_row(&mut self, row: usize) {
+        for col in 0..BUFFER_WIDTH {
+            self.write_byte_at(b' ', row, col);
         }
+    }
+
+    pub fn clear_screen(&mut self) {
+        for row in 0..BUFFER_HEIGHT {
+            self.clear_row(row);
+        }
+        self.column_position = 0;
+        CURSOR.lock().move_cursor(BUFFER_HEIGHT - 1, 0);
     }
 }
 

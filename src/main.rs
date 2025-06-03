@@ -4,6 +4,7 @@
 
 mod port;
 mod vga_buffer;
+
 use core::panic::PanicInfo;
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -19,10 +20,13 @@ lazy_static! {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn teleia() {
+    clear_screen!();
     loop {
         if let Ok(data) = SERIAL1.lock().try_receive() {
             if data == 13 {
                 println!();
+            } else if data == 12 {
+                clear_screen!();
             } else {
                 print!("{}", data as char);
             }
