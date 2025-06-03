@@ -163,7 +163,7 @@ impl Writer {
                     .lock()
                     .move_cursor((row * BUFFER_WIDTH + self.column_position) as u16);
             }
-            _ => self.write_byte(0xfe),
+            _ => self.write_byte(b'*'),
         }
     }
 
