@@ -46,21 +46,40 @@ pub struct Cursor {
 
 impl Cursor {
     fn new() -> Cursor {
-        Cursor {
+        let mut cursor = Cursor {
             command_port: Port::new(0x3D4),
             data_port: Port::new(0x3D5),
-        }
+        };
+        cursor.enable_cursor(14, 15);
+        cursor
     }
 
     fn move_cursor(&mut self, pos: u16) {
-        const HIGH_BYTE: u8 = 0x0F;
-        const LOW_BYTE: u8 = 0x0E;
+        const HIGH_BYTE: u8 = 0x0E;
+        const LOW_BYTE: u8 = 0x0F;
+
         unsafe {
             self.command_port.write(HIGH_BYTE);
             self.data_port.write(((pos >> 8) & 0xFF) as u8);
             self.command_port.write(LOW_BYTE);
             self.data_port.write((pos & 0xFF) as u8);
         };
+    }
+
+    fn enable_cursor(&mut self, cursor_start: u8, cursor_end: u8) {
+        const START_REGISTER: u8 = 0x0A;
+        const END_REGISTER: u8 = 0x0B;
+
+        unsafe {
+            self.command_port.write(START_REGISTER);
+            let mut current_data = self.data_port.read();
+            self.data_port
+                .write((current_data & 0xC0) | (cursor_start & 0x1F));
+            self.command_port.write(END_REGISTER);
+            current_data = self.data_port.read();
+            self.data_port
+                .write((current_data & 0xE0) | (cursor_end & 0x1F));
+        }
     }
 }
 
@@ -182,7 +201,9 @@ impl Writer {
             self.clear_row(row);
         }
         self.column_position = 0;
-        CURSOR.lock().move_cursor(0);
+        CURSOR
+            .lock()
+            .move_cursor(((BUFFER_HEIGHT - 1) * BUFFER_WIDTH) as u16);
     }
 }
 
